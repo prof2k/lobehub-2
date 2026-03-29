@@ -49,14 +49,17 @@ export class FileModel {
   ): Promise<{ id: string }> => {
     const executeInTransaction = async (tx: Transaction): Promise<FileItem> => {
       if (insertToGlobalFiles) {
-        await tx.insert(globalFiles).values({
-          creator: this.userId,
-          fileType: params.fileType,
-          hashId: params.fileHash!,
-          metadata: params.metadata,
-          size: params.size,
-          url: params.url,
-        });
+        await tx
+          .insert(globalFiles)
+          .values({
+            creator: this.userId,
+            fileType: params.fileType,
+            hashId: params.fileHash!,
+            metadata: params.metadata,
+            size: params.size,
+            url: params.url,
+          })
+          .onConflictDoNothing();
       }
 
       const result = (await tx
@@ -85,6 +88,13 @@ export class FileModel {
 
   createGlobalFile = async (file: Omit<NewGlobalFile, 'id' | 'userId'>) => {
     return this.db.insert(globalFiles).values(file).returning();
+  };
+
+  updateGlobalFile = async (
+    hashId: string,
+    data: Partial<Pick<NewGlobalFile, 'metadata' | 'url'>>,
+  ) => {
+    return this.db.update(globalFiles).set(data).where(eq(globalFiles.hashId, hashId));
   };
 
   checkHash = async (hash: string) => {

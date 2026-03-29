@@ -7,6 +7,7 @@ import { type ReactNode } from 'react';
 import { memo } from 'react';
 
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
+import { isModifierClick } from '@/utils/navigation';
 
 const ACTION_CLASS_NAME = 'nav-item-actions';
 
@@ -53,6 +54,7 @@ export interface NavItemProps extends Omit<BlockProps, 'children' | 'title'> {
    */
   href?: string;
   icon?: IconProps['icon'];
+  iconSize?: number;
   loading?: boolean;
   slots?: NavItemSlots;
   title: ReactNode;
@@ -66,6 +68,7 @@ const NavItem = memo<NavItemProps>(
     active,
     href,
     icon,
+    iconSize = 18,
     title,
     onClick,
     disabled,
@@ -99,12 +102,12 @@ const NavItem = memo<NavItemProps>(
         paddingInline={4}
         variant={variant}
         onClick={(e) => {
-          if (disabled || loading) return;
-          // Prevent default link behavior for normal clicks (let onClick handle it)
-          // But allow cmd+click to open in new tab
-          if (href && !e.metaKey && !e.ctrlKey) {
+          // Always prevent default <a> navigation for normal clicks to avoid full page reload.
+          // This must run before any early return to ensure SPA navigation is never bypassed.
+          if (href && !isModifierClick(e)) {
             e.preventDefault();
           }
+          if (disabled || loading) return;
           onClick?.(e);
         }}
         {...linkProps}
@@ -113,9 +116,9 @@ const NavItem = memo<NavItemProps>(
         {icon && (
           <Center flex={'none'} height={28} width={28}>
             {loading ? (
-              <NeuralNetworkLoading size={18} />
+              <NeuralNetworkLoading size={iconSize} />
             ) : (
-              <Icon color={iconColor} icon={icon} size={18} />
+              <Icon color={iconColor} icon={icon} size={iconSize} />
             )}
           </Center>
         )}

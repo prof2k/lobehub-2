@@ -2,7 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { userMemoryRouter } from '@/server/routers/lambda/userMemory';
-import { AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
+import { AsyncTaskErrorType, AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
 import { MemorySourceType } from '@/types/userMemory';
 
 const mockFindActiveByType = vi.fn();
@@ -11,6 +11,7 @@ const mockUpdate = vi.fn();
 const mockFindById = vi.fn();
 
 const mockCountTopicsForMemoryExtractor = vi.fn();
+const mockDeleteAll = vi.fn();
 const { mockTriggerProcessUsers } = vi.hoisted(() => ({
   mockTriggerProcessUsers: vi.fn(),
 }));
@@ -29,6 +30,17 @@ vi.mock('@/database/models/topic', () => ({
   TopicModel: vi.fn(() => ({
     countTopicsForMemoryExtractor: mockCountTopicsForMemoryExtractor,
   })),
+}));
+
+vi.mock('@/database/models/userMemory', () => ({
+  UserMemoryActivityModel: vi.fn(() => ({})),
+  UserMemoryContextModel: vi.fn(() => ({})),
+  UserMemoryExperienceModel: vi.fn(() => ({})),
+  UserMemoryIdentityModel: vi.fn(() => ({})),
+  UserMemoryModel: vi.fn(() => ({
+    deleteAll: mockDeleteAll,
+  })),
+  UserMemoryPreferenceModel: vi.fn(() => ({})),
 }));
 
 vi.mock('@/envs/app', () => ({
@@ -102,7 +114,10 @@ describe('userMemoryRouter.requestMemoryFromChatTopic', () => {
     expect(mockCreate).toHaveBeenCalledWith({
       metadata: {
         progress: { completedTopics: 0, totalTopics: 2 },
-        range: { from: new Date('2024-01-01').toISOString(), to: new Date('2024-02-01').toISOString() },
+        range: {
+          from: new Date('2024-01-01').toISOString(),
+          to: new Date('2024-02-01').toISOString(),
+        },
         source: 'chat_topic',
       },
       status: AsyncTaskStatus.Pending,
@@ -162,6 +177,7 @@ describe('userMemoryRouter.requestMemoryFromChatTopic', () => {
 describe('userMemoryRouter.getMemoryExtractionTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('returns null when no active task', async () => {
@@ -218,5 +234,68 @@ describe('userMemoryRouter.getMemoryExtractionTask', () => {
 
     expect(mockFindById).toHaveBeenCalledWith('a0a0a0a0-a0a0-4a0a-a0a0-a0a0a0a0a0a0');
     expect(result?.id).toBe('a0a0a0a0-a0a0-4a0a-a0a0-a0a0a0a0a0a0');
+  });
+
+  it('marks active task as error when topic-based timeout is exceeded', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2024-03-01T01:00:00.000Z'));
+
+    mockFindActiveByType.mockResolvedValue({
+      createdAt: new Date('2024-03-01T00:00:00.000Z'),
+      id: 'task-timeout',
+      metadata: {
+        progress: { completedTopics: 1, totalTopics: 6 },
+        source: 'chat_topic',
+      },
+      status: AsyncTaskStatus.Processing,
+      userId: 'user-1',
+    });
+
+    const caller = createCaller();
+    const result = await caller.getMemoryExtractionTask();
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      'task-timeout',
+      expect.objectContaining({
+        error: expect.objectContaining({
+          body: expect.objectContaining({
+            detail: expect.stringContaining('timed out after 30 minutes'),
+          }),
+          name: AsyncTaskErrorType.Timeout,
+        }),
+        status: AsyncTaskStatus.Error,
+      }),
+    );
+    expect(result).toEqual({
+      error: expect.objectContaining({
+        body: expect.objectContaining({
+          detail: expect.stringContaining('timed out after 30 minutes'),
+        }),
+        name: AsyncTaskErrorType.Timeout,
+      }),
+      id: 'task-timeout',
+      metadata: {
+        progress: { completedTopics: 1, totalTopics: 6 },
+        range: undefined,
+        source: 'chat_topic',
+      },
+      status: AsyncTaskStatus.Error,
+    });
+  });
+});
+
+describe('userMemoryRouter.deleteAll', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('purges all user memories through the aggregate model', async () => {
+    mockDeleteAll.mockResolvedValue(undefined);
+
+    const caller = createCaller();
+    const result = await caller.deleteAll();
+
+    expect(mockDeleteAll).toHaveBeenCalledOnce();
+    expect(result).toEqual({ success: true });
   });
 });

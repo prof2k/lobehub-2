@@ -11,6 +11,7 @@ import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 
 import { isDesktop } from '@/const/version';
+import { isModifierClick } from '@/utils/navigation';
 
 import BackButton from './components/BackButton';
 import ToggleLeftPanelButton from './ToggleLeftPanelButton';
@@ -103,10 +104,12 @@ const SideBarHeaderLayout = memo<SideBarHeaderLayoutProps>(
           ].map((item) => ({
             ...item,
             onClick: (event) => {
+              if (isModifierClick(event)) return;
               const href = item.href;
               if (href) {
                 event.preventDefault();
                 event.stopPropagation();
+                // eslint-disable-next-line @eslint-react/dom/no-flush-sync
                 flushSync(() => navigate(href));
               }
             },
@@ -125,15 +128,7 @@ const SideBarHeaderLayout = memo<SideBarHeaderLayoutProps>(
         padding={6}
       >
         {leftContent}
-        <Flexbox
-          horizontal
-          align={'center'}
-          gap={2}
-          justify={'flex-end'}
-          style={{
-            overflow: 'hidden',
-          }}
-        >
+        <Flexbox horizontal align={'center'} gap={2} justify={'flex-end'}>
           {showTogglePanelButton && <ToggleLeftPanelButton />}
           {right}
         </Flexbox>

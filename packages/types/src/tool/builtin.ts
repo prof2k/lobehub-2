@@ -61,7 +61,7 @@ export const RenderDisplayControlSchema = z.enum(['collapsed', 'expand', 'always
 export type DynamicInterventionResolver = (
   toolArgs: Record<string, any>,
   metadata?: Record<string, any>,
-) => boolean;
+) => Promise<boolean>;
 
 /**
  * Global intervention audit configuration
@@ -212,6 +212,7 @@ export const BuiltinToolManifestSchema = z.object({
 });
 
 export interface LobeBuiltinTool {
+  discoverable?: boolean;
   hidden?: boolean;
   identifier: string;
   manifest: BuiltinToolManifest;
@@ -219,6 +220,7 @@ export interface LobeBuiltinTool {
 }
 
 export const LobeBuiltinToolSchema = z.object({
+  discoverable: z.boolean().optional(),
   hidden: z.boolean().optional(),
   identifier: z.string(),
   manifest: BuiltinToolManifestSchema,

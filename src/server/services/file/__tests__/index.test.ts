@@ -53,6 +53,7 @@ describe('FileService', () => {
     mockFileModel = {
       findById: vi.fn(),
       delete: vi.fn(),
+      updateGlobalFile: vi.fn(),
     };
     mockTempManager = {
       writeTempFile: vi.fn(),
@@ -335,6 +336,99 @@ describe('FileService', () => {
         }),
         false, // insertToGlobalFiles = false when hash exists
       );
+    });
+  });
+
+  describe('createGlobalFile', () => {
+    beforeEach(() => {
+      mockFileModel.checkHash = vi.fn();
+      mockFileModel.createGlobalFile = vi.fn();
+    });
+
+    it('should create global file with metadata when hash does not exist', async () => {
+      mockFileModel.checkHash.mockResolvedValue({ isExist: false });
+      mockFileModel.createGlobalFile.mockResolvedValue([{ hashId: 'test-hash' }]);
+
+      const result = await service.createGlobalFile({
+        fileHash: 'test-hash',
+        fileType: 'text/markdown',
+        metadata: {
+          dirname: 'skills/source_files/abc123',
+          filename: 'README.md',
+          path: 'skills/source_files/abc123/README.md',
+        },
+        size: 1024,
+        url: 'skills/source_files/abc123/README.md',
+      });
+
+      expect(result).toEqual({ fileHash: 'test-hash' });
+      expect(mockFileModel.createGlobalFile).toHaveBeenCalledWith({
+        creator: mockUserId,
+        fileType: 'text/markdown',
+        hashId: 'test-hash',
+        metadata: {
+          dirname: 'skills/source_files/abc123',
+          filename: 'README.md',
+          path: 'skills/source_files/abc123/README.md',
+        },
+        size: 1024,
+        url: 'skills/source_files/abc123/README.md',
+      });
+    });
+
+    it('should not create global file when hash already exists with same url', async () => {
+      mockFileModel.checkHash.mockResolvedValue({ isExist: true, url: 'some/path.txt' });
+
+      const result = await service.createGlobalFile({
+        fileHash: 'existing-hash',
+        fileType: 'text/plain',
+        size: 100,
+        url: 'some/path.txt',
+      });
+
+      expect(result).toEqual({ fileHash: 'existing-hash' });
+      expect(mockFileModel.createGlobalFile).not.toHaveBeenCalled();
+      expect(mockFileModel.updateGlobalFile).not.toHaveBeenCalled();
+    });
+
+    it('should update url when hash exists but url changed', async () => {
+      mockFileModel.checkHash.mockResolvedValue({ isExist: true, url: 'old/path.txt' });
+
+      const result = await service.createGlobalFile({
+        fileHash: 'existing-hash',
+        fileType: 'text/plain',
+        metadata: { dirname: 'new', filename: 'path.txt', path: 'new/path.txt' },
+        size: 100,
+        url: 'new/path.txt',
+      });
+
+      expect(result).toEqual({ fileHash: 'existing-hash' });
+      expect(mockFileModel.createGlobalFile).not.toHaveBeenCalled();
+      expect(mockFileModel.updateGlobalFile).toHaveBeenCalledWith('existing-hash', {
+        metadata: { dirname: 'new', filename: 'path.txt', path: 'new/path.txt' },
+        url: 'new/path.txt',
+      });
+    });
+
+    it('should work without metadata', async () => {
+      mockFileModel.checkHash.mockResolvedValue({ isExist: false });
+      mockFileModel.createGlobalFile.mockResolvedValue([{ hashId: 'test-hash' }]);
+
+      await service.createGlobalFile({
+        fileHash: 'test-hash',
+        fileType: 'text/plain',
+        size: 100,
+        url: 'some/path.txt',
+      });
+
+      expect(mockFileModel.createGlobalFile).toHaveBeenCalledWith({
+        creator: mockUserId,
+        fileType: 'text/plain',
+        hashId: 'test-hash',
+        metadata: undefined,
+        size: 100,
+        url: 'some/path.txt',
+      });
     });
   });
 });

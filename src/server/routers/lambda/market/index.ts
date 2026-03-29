@@ -19,7 +19,9 @@ import {
 
 import { agentRouter } from './agent';
 import { agentGroupRouter } from './agentGroup';
+import { credsRouter } from './creds';
 import { oidcRouter } from './oidc';
+import { skillRouter } from './skill';
 import { socialRouter } from './social';
 import { userRouter } from './user';
 
@@ -53,7 +55,12 @@ export const marketRouter = router({
   // ============================== Agent Group Management (authenticated) ==============================
   agentGroup: agentGroupRouter,
 
-  
+  // ============================== Credential Management ==============================
+  creds: credsRouter,
+
+  // ============================== Skill Management ==============================
+  skill: skillRouter,
+
   getAgentsByPlugin: marketProcedure
     .input(
       z.object({
@@ -78,7 +85,7 @@ export const marketRouter = router({
     }),
 
   // ============================== Assistant Market ==============================
-getAssistantCategories: marketProcedure
+  getAssistantCategories: marketProcedure
     .input(
       z
         .object({
@@ -885,6 +892,38 @@ getAssistantCategories: marketProcedure
 
   // ============================== Social Features ==============================
   social: socialRouter,
+
+  submitFeedback: marketProcedure
+    .input(
+      z.object({
+        clientInfo: z
+          .object({
+            language: z.string().optional(),
+            timezone: z.string().optional(),
+            url: z.string().optional(),
+            userAgent: z.string().optional(),
+          })
+          .optional(),
+        email: z.string().optional(),
+        message: z.string(),
+        screenshotUrl: z.string().optional(),
+        title: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      log('submitFeedback input: %O', input);
+
+      try {
+        const result = await ctx.marketService.submitFeedback(input);
+        return { issueUrl: result?.issueUrl, success: true };
+      } catch (error) {
+        console.error('Error submitting feedback: %O', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to submit feedback',
+        });
+      }
+    }),
 
   // ============================== User Profile ==============================
   user: userRouter,
