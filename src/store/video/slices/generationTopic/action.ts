@@ -10,7 +10,7 @@ import { chatService } from '@/services/chat';
 import { generationTopicService } from '@/services/generationTopic';
 import { globalHelpers } from '@/store/global/helpers';
 import { useUserStore } from '@/store/user';
-import { systemAgentSelectors } from '@/store/user/selectors';
+import { systemAgentSelectors, userGeneralSettingsSelectors } from '@/store/user/selectors';
 import { type ImageGenerationTopic } from '@/types/generation';
 import { merge } from '@/utils/merge';
 import { setNamespace } from '@/utils/storeDebug';
@@ -252,7 +252,12 @@ export const createGenerationTopicSlice: StateCreator<
       },
       params: merge(
         generationTopicAgentConfig,
-        chainSummaryGenerationTitle(prompts, 'video', globalHelpers.getCurrentLanguage()),
+        chainSummaryGenerationTitle(
+          prompts,
+          'video',
+          userGeneralSettingsSelectors.responseLanguage(useUserStore.getState()) ||
+            globalHelpers.getCurrentLanguage(),
+        ),
       ),
     });
 
@@ -260,14 +265,6 @@ export const createGenerationTopicSlice: StateCreator<
   },
 
   switchGenerationTopic: (topicId: string) => {
-    const currentTopics = get().generationTopics;
-    const targetTopic = currentTopics.find((topic) => topic.id === topicId);
-
-    if (!targetTopic) {
-      console.warn(`Generation topic with id ${topicId} not found`);
-      return;
-    }
-
     if (get().activeGenerationTopicId === topicId) return;
 
     set({ activeGenerationTopicId: topicId }, false, n('switchGenerationTopic'));

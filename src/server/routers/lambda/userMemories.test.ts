@@ -3,6 +3,7 @@ import { LayersEnum, TypesEnum } from '@lobechat/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
+import type * as UserMemoryModule from '@/database/models/userMemory';
 import { UserMemoryModel } from '@/database/models/userMemory';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 
@@ -23,7 +24,7 @@ vi.mock('@/server/modules/ModelRuntime', () => ({
 }));
 
 vi.mock('@/database/models/userMemory', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/database/models/userMemory')>();
+  const actual = await importOriginal<typeof UserMemoryModule>();
   const mockUserMemoryModel: any = vi.fn();
   mockUserMemoryModel.parseDateFromString = actual.UserMemoryModel.parseDateFromString;
   mockUserMemoryModel.parseAssociatedLocations = actual.UserMemoryModel.parseAssociatedLocations;
@@ -32,7 +33,7 @@ vi.mock('@/database/models/userMemory', async (importOriginal) => {
   return {
     ...actual,
     UserMemoryModel: mockUserMemoryModel,
-  } satisfies typeof import('@/database/models/userMemory');
+  } satisfies typeof UserMemoryModule;
 });
 
 const embeddingsMock = vi.fn();
@@ -156,6 +157,10 @@ describe('memoryRouter.reEmbedMemories', () => {
     });
 
     expect(embeddingsMock).toHaveBeenCalledTimes(6);
+
+    for (const call of embeddingsMock.mock.calls) {
+      expect(call[1]).toEqual(expect.objectContaining({ user: 'test-user' }));
+    }
   });
 });
 
@@ -358,6 +363,10 @@ describe('userMemories.retrieveMemory', () => {
     });
 
     expect(embeddingsMock).toHaveBeenCalledTimes(1);
+    expect(embeddingsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ user: 'test-user' }),
+    );
     expect(searchWithEmbedding.mock.calls[0][0]).toBeTypeOf('object');
     expect(searchWithEmbedding.mock.calls[0][0]).toStrictEqual({
       embedding: [1],
@@ -455,5 +464,9 @@ describe('userMemories.toolAddActivityMemory', () => {
       success: true,
     });
     expect(embeddingsMock).toHaveBeenCalledTimes(4);
+
+    for (const call of embeddingsMock.mock.calls) {
+      expect(call[1]).toEqual(expect.objectContaining({ user: 'test-user' }));
+    }
   });
 });
